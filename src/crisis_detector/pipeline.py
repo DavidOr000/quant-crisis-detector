@@ -137,13 +137,16 @@ class CrisisDetectorPipeline:
             hurst_index, vol_surprise, betti_0, betti_1, stress_score,
             signal_label
         """
-        print(f"Downloading data {start} → {end}...")
+        print(f"Downloading data {start} -> {end}...")
+        # Use strftime to produce clean date strings — avoids yfinance timestamp parsing errors
+        start_buffer = (pd.Timestamp(start) - pd.Timedelta(days=120)).strftime('%Y-%m-%d')
+        end_str      = pd.Timestamp(end).strftime('%Y-%m-%d')
         prices = yf.download(
-            self.tickers, start=str(pd.Timestamp(start) - pd.Timedelta(days=120)),
-            end=end, progress=False
+            self.tickers, start=start_buffer, end=end_str, progress=False
         )['Close'].dropna(axis=1, how='all').dropna()
 
-        spy_prices = yf.download('SPY', start=start, end=end, progress=False)['Close'].squeeze()
+        spy_prices = yf.download('SPY', start=start, end=end_str,
+                                  progress=False)['Close'].squeeze()
 
         returns    = np.log(prices / prices.shift(1)).dropna()
         spy_ret    = np.log(spy_prices / spy_prices.shift(1)).dropna()
@@ -246,6 +249,10 @@ class CrisisDetectorPipeline:
                 'signal_label':  combined.label,
                 'regime_label':  regime_lbl,
             })
+
+        if not records:
+            print("Warning: no signal points computed. Check that data downloaded correctly.")
+            return pd.DataFrame()
 
         df = pd.DataFrame(records).set_index('date')
         df.index = pd.to_datetime(df.index)
